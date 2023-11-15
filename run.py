@@ -2,25 +2,34 @@ import functools as fn
 import typing as tp
 
 import databases
-import settings
 import strawberry
 import uvicorn
 from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter
 from strawberry.schema.config import StrawberryConfig
 
+import settings
+from src.context import get_context
+from src.users.gql import UserQuery, UserMutation
+
 
 @strawberry.type
-class Query:
+class Query(
+    UserQuery,
+):
     """Query."""
 
-    @strawberry.field
-    def hello(self) -> str:
-        return 'world'
+
+@strawberry.type
+class Mutation(
+    UserMutation,
+):
+    """Mutations."""
 
 
 schema = strawberry.Schema(
     query=Query,
+    mutation=Mutation,
     config=StrawberryConfig(auto_camel_case=True),
 )
 
@@ -39,9 +48,9 @@ HOOK_TYPE = tp.Optional[
 
 
 def get_app(
-    db: databases.Database,
-    on_startup: HOOK_TYPE = None,
-    on_shutdown: HOOK_TYPE = None,
+        db: databases.Database,
+        on_startup: HOOK_TYPE = None,
+        on_shutdown: HOOK_TYPE = None,
 ) -> FastAPI:
     app = FastAPI(
         on_startup=[fn.partial(startup_db, db)] if on_startup is None else on_startup,
@@ -49,6 +58,7 @@ def get_app(
     )
     graphql_app = GraphQLRouter(
         schema,
+        context_getter=fn.partial(get_context, db),
     )
     app.include_router(graphql_app, prefix='/graphql')
     return app
